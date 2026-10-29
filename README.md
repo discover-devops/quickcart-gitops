@@ -260,10 +260,11 @@ Now look at the `k8s/` folder. Every Deployment, Service, ConfigMap and the Ingr
 
 Kubernetes cannot run `main.py`. It can only run **container images** from a registry. Something has to build them. In real teams, that is a **CI pipeline**.
 
-Open `.github/workflows/ci.yaml`. It has two jobs:
+Open `.github/workflows/ci.yaml`. It has three jobs, and each one runs only if the previous one passed:
 
-1. **build** builds the three images and pushes them to Docker Hub, tagged with the Git commit ID.
-2. **update-manifests** writes those new tags into `k8s/*.yaml` and commits them back to Git.
+1. **test** runs the unit tests (`app/*/test_main.py`). If any test fails, the pipeline stops and nothing is built.
+2. **build** builds the three images and pushes them to Docker Hub, tagged with the Git commit ID.
+3. **update-manifests** writes those new tags into `k8s/*.yaml` and commits them back to Git.
 
 **Think about it:** The pipeline needs to log in to Docker Hub. Where does the password come from? It is not in this file.
 
@@ -292,7 +293,7 @@ You forked my repository, but my secrets did not come with it. If GitHub copied 
 
 1. Open the **Actions** tab. In a fork, GitHub switches workflows off. Click **I understand my workflows, go ahead and enable them**.
 2. Click **CI - build and release** in the left menu, then **Run workflow**, then the green **Run workflow** button.
-3. Click into the run. Three `build` jobs run in parallel, then `update-manifests` runs.
+3. Click into the run. Two `test` jobs run first, then three `build` jobs in parallel, then `update-manifests`.
 
 It takes about 3 minutes.
 

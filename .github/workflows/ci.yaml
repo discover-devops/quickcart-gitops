@@ -1,9 +1,10 @@
 # CI pipeline for QuickCart
 #
 # Runs when code under app/ changes on main (or when you click Run workflow).
-#   Job 1 - build:  builds the 3 images and pushes them to Docker Hub,
+#   Job 1 - test:   runs the unit tests. If any test fails, the pipeline stops.
+#   Job 2 - build:  builds the 3 images and pushes them to Docker Hub,
 #                   tagged with the Git commit SHA.
-#   Job 2 - update-manifests: writes the new image tags into k8s/*.yaml
+#   Job 3 - update-manifests: writes the new image tags into k8s/*.yaml
 #                   and commits them back to Git.
 # Argo CD sees that commit and deploys it. The pipeline never touches the cluster.
 #
@@ -23,7 +24,30 @@ permissions:
   contents: write   # needed to commit the new image tags back to Git
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [product-service, order-service]
+    steps:
+      - name: Get the source code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: app/${{ matrix.service }}
+        run: pip install -r requirements.txt pytest httpx
+
+      - name: Run unit tests
+        working-directory: app/${{ matrix.service }}
+        run: pytest -v
+
   build:
+    needs: test   # no image is built unless every test passes
     runs-on: ubuntu-latest
     strategy:
       matrix:
