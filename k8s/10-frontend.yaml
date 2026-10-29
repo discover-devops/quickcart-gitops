@@ -41,7 +41,7 @@ spec:
       containers:
         - name: frontend
           # The CI pipeline updates this tag after every build.
-          image: discoverdevops/quickcart-frontend:latest
+          image: discoverdevops/quickcart-frontend:dab3e108caf1313d885fe79f262b7e1f2c8d5186
           ports:
             - containerPort: 8080
           volumeMounts:
