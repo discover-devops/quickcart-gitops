@@ -1,0 +1,32 @@
+# EKS cluster for the QuickCart GitOps lab
+#   Create:  eksctl create cluster -f cluster/eks-cluster.yaml   (about 20 min)
+#   Delete:  see the Clean up section of the README (ALB first!)
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: quickcart-eks
+  region: ap-south-1
+  tags:
+    project: quickcart-gitops
+
+iam:
+  # OIDC lets Kubernetes service accounts use AWS IAM roles (IRSA).
+  withOIDC: true
+  serviceAccounts:
+    # The AWS Load Balancer Controller needs AWS permissions to create ALBs.
+    # eksctl creates the IAM role with the right policy and links it to this
+    # Kubernetes service account.
+    - metadata:
+        name: aws-load-balancer-controller
+        namespace: kube-system
+      wellKnownPolicies:
+        awsLoadBalancerController: true
+
+managedNodeGroups:
+  - name: workers
+    instanceType: t3.medium
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 3
+    volumeSize: 20

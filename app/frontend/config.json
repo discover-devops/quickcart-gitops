@@ -1,0 +1,5 @@
+{
+  "shopName": "QuickCart",
+  "banner": "Welcome to QuickCart (default config, ConfigMap not mounted)",
+  "currency": "Rs."
+}

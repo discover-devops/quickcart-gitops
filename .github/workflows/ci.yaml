@@ -1,0 +1,81 @@
+# CI pipeline for QuickCart
+#
+# Runs when code under app/ changes on main (or when you click Run workflow).
+#   Job 1 - build:  builds the 3 images and pushes them to Docker Hub,
+#                   tagged with the Git commit SHA.
+#   Job 2 - update-manifests: writes the new image tags into k8s/*.yaml
+#                   and commits them back to Git.
+# Argo CD sees that commit and deploys it. The pipeline never touches the cluster.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DOCKERHUB_USERNAME   your Docker Hub username
+#   DOCKERHUB_TOKEN      a Docker Hub access token with Read & Write
+name: CI - build and release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to commit the new image tags back to Git
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, product-service, order-service]
+    steps:
+      - name: Get the source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push quickcart-${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: app/${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/quickcart-${{ matrix.service }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/quickcart-${{ matrix.service }}:latest
+
+  update-manifests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the source code
+        uses: actions/checkout@v4
+
+      - name: Point the Kubernetes manifests at the new images
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          for svc in frontend product-service order-service; do
+            sed -i -E "s#image: .*/quickcart-${svc}:.*#image: ${DH_USER}/quickcart-${svc}:${GITHUB_SHA}#" k8s/*.yaml
+          done
+          grep -n "image:" k8s/*.yaml
+
+      - name: Commit the new image tags to Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/
+          if git diff --cached --quiet; then
+            echo "Image tags already up to date"
+            exit 0
+          fi
+          git commit -m "ci: release images ${GITHUB_SHA::7} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

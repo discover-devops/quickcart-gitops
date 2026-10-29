@@ -1,0 +1,7 @@
+# Everything QuickCart runs lives in this namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quickcart
+  labels:
+    app.kubernetes.io/part-of: quickcart

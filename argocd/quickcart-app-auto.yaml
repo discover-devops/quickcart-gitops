@@ -1,0 +1,26 @@
+# The SAME Application, with every automation switched on.
+# Apply it on top of the manual one:
+#
+#   kubectl apply -f argocd/quickcart-app-auto.yaml
+#
+# Students: change discover-devops in repoURL to your own GitHub username.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: quickcart
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/discover-devops/quickcart-gitops.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quickcart
+  syncPolicy:
+    automated:
+      selfHeal: true   # manual kubectl changes are reverted to what Git says
+      prune: true      # files deleted from Git are deleted from the cluster

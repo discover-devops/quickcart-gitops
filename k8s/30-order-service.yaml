@@ -1,0 +1,63 @@
+# ------------------------------------------------------------------
+# order-service: takes orders, asks product-service for the price
+# ------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: quickcart
+  labels:
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: quickcart
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: order-service
+        app.kubernetes.io/part-of: quickcart
+    spec:
+      containers:
+        - name: order-service
+          # The CI pipeline updates this tag after every build.
+          image: discoverdevops/quickcart-order-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            # Service-to-service call: Kubernetes DNS resolves the Service name.
+            - name: PRODUCT_SERVICE_URL
+              value: http://product-service
+          readinessProbe:
+            httpGet: { path: /api/orders/health, port: 8000 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/orders/health, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 300m, memory: 192Mi }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: quickcart
+  labels:
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: quickcart
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /api/orders/health
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: order-service
+  ports:
+    - port: 80
+      targetPort: 8000

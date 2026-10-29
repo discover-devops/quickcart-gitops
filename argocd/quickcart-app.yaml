@@ -1,0 +1,25 @@
+# The Argo CD Application: "the k8s/ folder of this Git repo
+# should be running in the quickcart namespace of this cluster."
+#
+#   kubectl apply -f argocd/quickcart-app.yaml
+#
+# Students: change discover-devops in repoURL to your own GitHub username.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: quickcart
+  namespace: argocd
+  # Deleting this Application also deletes everything it deployed (including the ALB).
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/discover-devops/quickcart-gitops.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quickcart
+  # Step 1: MANUAL sync. Argo CD shows what changed and waits for you.
+  syncPolicy: {}

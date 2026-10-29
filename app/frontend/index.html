@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuickCart</title>
+  <style>
+    :root { --bg:#f6f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --accent:#2563eb; --ok:#16a34a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    header { background:var(--accent); color:#fff; padding:20px 16px; }
+    header h1 { margin:0; font-size:28px; }
+    #banner { margin-top:6px; opacity:.9; }
+    main { max-width:960px; margin:0 auto; padding:16px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px; }
+    .card { background:var(--card); border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .card h3 { margin:0 0 8px; font-size:18px; }
+    .price { font-size:22px; font-weight:700; margin-bottom:12px; }
+    .row { display:flex; gap:8px; }
+    select, button { padding:8px 10px; border-radius:8px; border:1px solid #d1d5db; font-size:14px; }
+    button { background:var(--accent); color:#fff; border:0; cursor:pointer; flex:1; font-weight:600; }
+    #result { margin:20px 0; padding:14px 16px; border-radius:10px; background:#ecfdf5; color:#065f46; display:none; }
+    #result.error { background:#fef2f2; color:#991b1b; }
+    footer { max-width:960px; margin:24px auto; padding:0 16px 24px; color:var(--muted); font-size:13px; line-height:1.7; }
+    code { background:#eef2ff; padding:1px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1 id="shopName">QuickCart</h1>
+  <div id="banner">Loading...</div>
+</header>
+
+<main>
+  <div id="result"></div>
+  <div class="grid" id="products">Loading products...</div>
+</main>
+
+<footer>
+  <div><strong>Which microservice answered?</strong></div>
+  <div>frontend <code id="feVersion"></code></div>
+  <div>product-service <code id="psVersion">...</code> on pod <code id="psPod">...</code></div>
+  <div>order-service <code id="osVersion">...</code></div>
+</footer>
+
+<script>
+// Change this, push, and watch the new frontend roll out through the pipeline.
+const FRONTEND_VERSION = "1.0.0";
+
+let currency = "Rs.";
+
+async function loadConfig() {
+  // Served from the frontend-config ConfigMap, mounted into nginx.
+  try {
+    const cfg = await (await fetch("config/config.json", { cache: "no-store" })).json();
+    document.getElementById("shopName").textContent = cfg.shopName;
+    document.getElementById("banner").textContent = cfg.banner;
+    document.title = cfg.shopName;
+    currency = cfg.currency || currency;
+  } catch (e) {
+    document.getElementById("banner").textContent = "config not found";
+  }
+}
+
+async function loadProducts() {
+  // The ALB routes /api/products to product-service.
+  const box = document.getElementById("products");
+  try {
+    const data = await (await fetch("/api/products", { cache: "no-store" })).json();
+    document.getElementById("psVersion").textContent = "v" + data.version;
+    document.getElementById("psPod").textContent = data.pod;
+    box.innerHTML = "";
+    data.products.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML =
+        `<h3></h3><div class="price"></div>
+         <div class="row">
+           <select>${[1,2,3,4,5].map(n => `<option>${n}</option>`).join("")}</select>
+           <button>Order</button>
+         </div>`;
+      card.querySelector("h3").textContent = p.name;
+      card.querySelector(".price").textContent = `${currency} ${p.price}`;
+      card.querySelector("button").onclick = () =>
+        placeOrder(p.id, Number(card.querySelector("select").value));
+      box.appendChild(card);
+    });
+  } catch (e) {
+    box.textContent = "product-service is not reachable";
+  }
+}
+
+async function loadOrderVersion() {
+  try {
+    const h = await (await fetch("/api/orders/health", { cache: "no-store" })).json();
+    document.getElementById("osVersion").textContent = "v" + h.version;
+  } catch (e) {
+    document.getElementById("osVersion").textContent = "not reachable";
+  }
+}
+
+async function placeOrder(productId, quantity) {
+  // The ALB routes /api/orders to order-service, which calls product-service.
+  const box = document.getElementById("result");
+  box.style.display = "block";
+  try {
+    const r = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId, quantity })
+    });
+    const o = await r.json();
+    if (!r.ok) throw new Error(o.detail || "order failed");
+    box.className = "";
+    box.textContent =
+      `Order ${o.order_id} confirmed: ${o.quantity} x ${o.product} = ${currency} ${o.total} ` +
+      `(handled by order-service pod ${o.handled_by})`;
+  } catch (e) {
+    box.className = "error";
+    box.textContent = "Order failed: " + e.message;
+  }
+}
+
+document.getElementById("feVersion").textContent = "v" + FRONTEND_VERSION;
+loadConfig().then(loadProducts);
+loadOrderVersion();
+</script>
+</body>
+</html>
