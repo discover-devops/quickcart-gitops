@@ -15,7 +15,7 @@ data:
   config.json: |
     {
       "shopName": "QuickCart",
-      "banner": "Welcome to QuickCart - deployed by Argo CD",
+      "banner": "Big Diwali Sale - prices changed through Git",
       "currency": "Rs."
     }
 ---
