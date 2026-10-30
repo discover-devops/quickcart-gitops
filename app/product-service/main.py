@@ -16,7 +16,7 @@ import socket
 from fastapi import FastAPI, HTTPException
 
 # Change this, push, and watch the new version roll out through the pipeline.
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 CATALOG_FILE = os.getenv("CATALOG_FILE", "/config/products.json")
 
